@@ -14,6 +14,7 @@ DHT dht(DHTPIN, DHTTYPE);
 U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0);
 
 float humidity = 0.0f;
+float temperature = 0.0f;
 
 void setup() {
   Serial.begin(9600);
@@ -27,6 +28,7 @@ void readDht22() {
   if (millis() - previousMillis > READ_INTERVAL_DHT22) {
     previousMillis = millis();
     readHumidity();
+    readTemperature();
   }
 }
 
@@ -38,6 +40,15 @@ void readHumidity() {
   humidity = humdityReading;
 }
 
+void readTemperature() {
+  float temperatureReading = dht.readTemperature(false);
+  if (isnan(temperatureReading)) {
+    return;
+  }
+  temperature = temperatureReading;
+}
+
+
 void draw() {
   static unsigned long previousMillis = 0;
 
@@ -47,12 +58,12 @@ void draw() {
     u8g2.firstPage();
     do {
       drawHumidity();
+      drawTemperature();
     } while (u8g2.nextPage());
   }
 }
 
 void drawHumidity() {
-
   char buffer[10];
   char *humidityString = dtostrf(humidity, 2, 1, buffer);
   strcat(humidityString, "%");
@@ -62,6 +73,18 @@ void drawHumidity() {
 
   u8g2.setFont(u8g2_font_trixel_square_tf);
   u8g2.drawStr(0, 44, "Luftfeuchtigkeit");
+}
+
+void drawTemperature() {
+  char buffer[20];
+  char *temperatureString = dtostrf(temperature, 2, 1, buffer);
+  strcat(temperatureString, "\xB0");
+  
+  u8g2.setFont(u8g2_font_courB14_tf);
+  u8g2.drawStr(60, 63, temperatureString);
+
+  u8g2.setFont(u8g2_font_trixel_square_tf);
+  u8g2.drawStr(60, 44, "Temperatur");
 }
 
 void loop() {
