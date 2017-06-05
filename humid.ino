@@ -1,13 +1,24 @@
 #include <DHT.h>
 #include <U8g2lib.h>
+#include <DS3232RTC.h>
+#include <TimeLib.h>
+#include <Timezone.h>
 #include <SPI.h>
 #include <Wire.h>
-
+  
 #define DHTPIN 2
 #define DHTTYPE DHT22
 
-#define DISPLAY_REFRESH_RATE 2000
+#define DISPLAY_REFRESH_RATE 1000
 #define READ_INTERVAL_DHT22 2000
+#define READ_INTERVAL_RTC 900
+
+#define OLED_WIDTH 128
+#define OLED_HEIGHT 64
+
+char *week_abbr[7] = {
+  "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"
+};
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -18,8 +29,17 @@ float temperature = 0.0f;
 
 void setup() {
   Serial.begin(9600);
+  setSyncProvider(RTC.get);
   dht.begin();
   u8g2.begin();
+}
+
+time_t getLocalTime() {
+  static TimeChangeRule germanSummerTime = {"DEUS", Last, Sun, Mar, 2, 120};
+  static TimeChangeRule germanWinterTime = {"DEUW", Last, Sun, Oct, 3, 60};
+  static Timezone germanTime(germanSummerTime, germanWinterTime);
+  time_t localTime = germanTime.toLocal(now());
+  return localTime;
 }
 
 void readDht22() {
@@ -32,12 +52,26 @@ void readDht22() {
   }
 }
 
+void readRtc() {
+  static unsigned long previousMillis = 0;
+
+  if (millis() - previousMillis > READ_INTERVAL_RTC) {
+    previousMillis = millis();
+    readTime();
+  }
+}
+
 void readHumidity() {
   float humdityReading = dht.readHumidity();
   if (isnan(humdityReading)) {
     return;
   }
   humidity = humdityReading;
+}
+
+void readTime() {
+  time_t localTime = getLocalTime();
+  Serial.println(localTime);
 }
 
 void readTemperature() {
@@ -59,6 +93,7 @@ void draw() {
     do {
       drawHumidity();
       drawTemperature();
+      drawTimeAndDate();
     } while (u8g2.nextPage());
   }
 }
@@ -68,11 +103,11 @@ void drawHumidity() {
   char *humidityString = dtostrf(humidity, 2, 1, buffer);
   strcat(humidityString, "%");
   
-  u8g2.setFont(u8g2_font_courB14_tf);
+  u8g2.setFont(u8g2_font_courB12_tf);
   u8g2.drawStr(0, 63, humidityString);
 
   u8g2.setFont(u8g2_font_trixel_square_tf);
-  u8g2.drawStr(0, 44, "Luftfeuchtigkeit");
+  u8g2.drawStr(0, 45, "Luftfeuchtigkeit");
 }
 
 void drawTemperature() {
@@ -80,14 +115,42 @@ void drawTemperature() {
   char *temperatureString = dtostrf(temperature, 2, 1, buffer);
   strcat(temperatureString, "\xB0");
   
-  u8g2.setFont(u8g2_font_courB14_tf);
-  u8g2.drawStr(60, 63, temperatureString);
+  u8g2.setFont(u8g2_font_courB12_tf);
+  byte rightPosTempValue = OLED_WIDTH - u8g2.getStrWidth(buffer);
+  u8g2.drawStr(rightPosTempValue, 63, temperatureString);
 
   u8g2.setFont(u8g2_font_trixel_square_tf);
-  u8g2.drawStr(60, 44, "Temperatur");
+  byte rightPosTempKey = OLED_WIDTH - u8g2.getStrWidth("Temperatur");
+  u8g2.drawStr(rightPosTempKey, 45, "Temperatur");
+}
+
+void drawTimeAndDate() {
+  char buffer[20];
+  time_t currentTime = getLocalTime();
+  byte hours = hour(currentTime);
+  byte minutes = minute(currentTime);
+  byte seconds = second(currentTime);
+  sprintf(buffer, "%02i:%02i:%02i", hours, minutes, seconds);
+
+  u8g2.setFont(u8g2_font_courB18_tf);
+
+  byte centerPosTime = (OLED_WIDTH - u8g2.getStrWidth(buffer)) / 2;
+  u8g2.drawStr(centerPosTime, 18, buffer);
+
+  char *weekdayAbbr = week_abbr[weekday(currentTime) - 1];
+  byte days = day(currentTime);
+  byte months = month(currentTime);
+  int years = year(currentTime);
+  sprintf(buffer, "%s, %i.%i.%i", weekdayAbbr, days, months, years);
+
+  u8g2.setFont(u8g2_font_courB08_tf);
+
+  byte centerPosDate = (OLED_WIDTH - u8g2.getStrWidth(buffer)) / 2;
+  u8g2.drawStr(centerPosDate, 32, buffer);
 }
 
 void loop() {
   readDht22();
+  readRtc();
   draw();
 }
