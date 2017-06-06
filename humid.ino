@@ -5,9 +5,12 @@
 #include <Timezone.h>
 #include <SPI.h>
 #include <Wire.h>
-  
+
+#include "pitches.h"
+
 #define DHTPIN 2
 #define DHTTYPE DHT22
+#define BUZZERPIN 4
 
 #define DISPLAY_REFRESH_RATE 1000
 #define READ_INTERVAL_DHT22 2000
@@ -18,6 +21,14 @@
 
 char *week_abbr[7] = {
   "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"
+};
+
+byte melody[] = {
+  NOTE_E3, NOTE_B2, NOTE_C3, NOTE_D3, NOTE_C3, NOTE_B2, NOTE_A2, NOTE_A2, NOTE_C3, NOTE_E3, NOTE_D3, NOTE_C3, NOTE_B2, NOTE_C3, NOTE_D3, NOTE_E3, NOTE_C3, NOTE_A2, NOTE_A2
+};
+
+float noteDurations[] = {
+  4, 8, 8, 4, 8, 8, 4, 8, 8, 4, 8, 8, 8.0f / 3.0f, 8, 4, 4, 4, 4, 4
 };
 
 DHT dht(DHTPIN, DHTTYPE);
@@ -32,6 +43,22 @@ void setup() {
   setSyncProvider(RTC.get);
   dht.begin();
   u8g2.begin();
+
+  for (int thisNote = 0; thisNote < 20; thisNote++) {
+
+    // to calculate the note duration, take one second
+    // divided by the note type.
+    //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
+    int noteDuration = 1000 / noteDurations[thisNote];
+    tone(BUZZERPIN, melody[thisNote], noteDuration);
+
+    // to distinguish the notes, set a minimum time between them.
+    // the note's duration + 30% seems to work well:
+    int pauseBetweenNotes = noteDuration * 1.30;
+    delay(pauseBetweenNotes);
+    // stop the tone playing:
+    noTone(BUZZERPIN);
+  }
 }
 
 time_t getLocalTime() {
@@ -41,6 +68,16 @@ time_t getLocalTime() {
   time_t localTime = germanTime.toLocal(now());
   return localTime;
 }
+
+/*
+  void playRandomSound() {
+  static unsigned long previousMillis = 0;
+
+  if (millis() - previousMillis > 500) {
+    previousMillis = millis();
+    tone(BUZZERPIN, random(2000, 5000));
+  }
+  }*/
 
 void readDht22() {
   static unsigned long previousMillis = 0;
@@ -102,7 +139,7 @@ void drawHumidity() {
   char buffer[10];
   char *humidityString = dtostrf(humidity, 2, 1, buffer);
   strcat(humidityString, "%");
-  
+
   u8g2.setFont(u8g2_font_courB12_tf);
   u8g2.drawStr(0, 63, humidityString);
 
@@ -114,7 +151,7 @@ void drawTemperature() {
   char buffer[20];
   char *temperatureString = dtostrf(temperature, 2, 1, buffer);
   strcat(temperatureString, "\xB0");
-  
+
   u8g2.setFont(u8g2_font_courB12_tf);
   byte rightPosTempValue = OLED_WIDTH - u8g2.getStrWidth(buffer);
   u8g2.drawStr(rightPosTempValue, 63, temperatureString);
@@ -153,4 +190,5 @@ void loop() {
   readDht22();
   readRtc();
   draw();
+  //playRandomSound();
 }
