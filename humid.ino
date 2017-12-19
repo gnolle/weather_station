@@ -18,9 +18,9 @@ const uint8_t DHTPIN = 2;
 const uint8_t OLED_WIDTH = 128;
 const uint8_t OLED_HEIGHT = 64;
 
-const uint8_t chipSelect = 4;
+const uint8_t CHIP_SELECT = 4;
 
-DHT dht(DHTPIN, DHTTYPE);
+DHT dht;
 
 U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0);
 
@@ -32,9 +32,9 @@ float temperature = 0.0f;
 void setup() {
   Serial.begin(9600);
   setSyncProvider(RTC.get);
-  dht.begin();
+  dht.setup(DHTPIN);
   u8g2.begin();
-  SD.begin(chipSelect);
+  SD.begin(CHIP_SELECT);
 }
 
 time_t getLocalTime() {
@@ -56,7 +56,7 @@ void readDht22() {
 }
 
 void readHumidity() {
-  float humdityReading = dht.readHumidity();
+  float humdityReading = dht.getHumidity();
   if (isnan(humdityReading)) {
     return;
   }
@@ -64,7 +64,7 @@ void readHumidity() {
 }
 
 void readTemperature() {
-  float temperatureReading = dht.readTemperature(false);
+  float temperatureReading = dht.getTemperature();
   if (isnan(temperatureReading)) {
     return;
   }
@@ -111,7 +111,7 @@ void draw() {
 
   if (millis() - previousMillis > DISPLAY_REFRESH_RATE) {
     previousMillis = millis();
-
+    Serial.println(freeRam());
     u8g2.firstPage();
     do {
       drawHumidity();
@@ -119,6 +119,12 @@ void draw() {
       drawTimeAndDate();
     } while (u8g2.nextPage());
   }
+}
+
+int freeRam() {
+  extern int __heap_start, *__brkval; 
+  int v; 
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
 }
 
 void drawHumidity() {
